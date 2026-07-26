@@ -15,7 +15,6 @@
 
 #include "nds/mem.h"
 
-#define DEBUG_PRINT 1
 #if DEBUG_PRINT
 #include "kPrint.h"
 #define DPRINT(format) k::Print(format)
