@@ -32,7 +32,8 @@
 // Item data of new battle items
 	a\0\2\4\113 <...> a\0\2\4\115
 	a\0\2\4\120 <...> a\0\2\4\133
-	a\0\2\4\426 <...> a\0\2\4\440
+	a\0\2\4\426 <...> a\0\2\4\430
+	a\0\2\4\432 <...> a\0\2\4\441
 #endif
 #if ADD_FAIRY_TYPE
 	type_chart.bin // Updated type chart
