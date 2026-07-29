@@ -1,0 +1,135 @@
+### This file heavily references ds-pokemon-hacking/White2Upgrade
+### A huge thank you to the contributors of ds-pokemon-hacking
+### for all of their hard work over the years!
+
+project         := PW2Code
+rom_code        := IRDO
+patches         := Base BattleUpgrade FairyPatch
+
+# Directory configuration
+build_dir        = build
+incl_dir        := include
+data_dir        := Assets
+
+patches_dir     := Patches
+externals_dir   := Externals
+
+# Libraries and Globals
+## Code
+s_src   := $(shell find . -type f -not -path "*/$(externals_dir)/*" -not -path "*/$(patches_dir)/*" -name '*.S')
+c_src   := $(shell find . -type f -not -path "*/$(externals_dir)/*" -not -path "*/$(patches_dir)/*" -name '*.c')
+cpp_src := $(shell find . -type f -not -path "*/$(externals_dir)/*" -not -path "*/$(patches_dir)/*" -name '*.cpp')
+srcs     := $(s_src) $(c_src) $(cpp_src)
+## Objects
+asm_obj         := $(addprefix $(build_dir)/code/, $(notdir $(s_src:.S=_S.o)))
+c_obj           := $(addprefix $(build_dir)/code/, $(notdir $(c_src:.c=_c.o)))
+cpp_obj         := $(addprefix $(build_dir)/code/, $(notdir $(cpp_src:.cpp=_cpp.o)))
+objs            := $(asm_obj) $(c_obj) $(cpp_obj)
+## Headers
+headers   := . Global Headers Externals/swan Externals/ExtLib Externals/NitroKernel/include Externals/libRPM/include
+
+# Patches
+base_dir           := $(patches_dir)/Base
+battle_upgrade_dir := $(patches_dir)/BattleUpgrade
+fairy_patch_dir    := $(patches_dir)/FairyPatch
+## Base
+base_s_src   := $(shell find $(base_dir) -type f -name '*.S')
+base_c_src   := $(shell find $(base_dir) -type f -name '*.c')
+base_cpp_src := $(shell find $(base_dir) -type f -name '*.cpp')
+
+base_asm_obj := $(addprefix $(build_dir)/code/, $(notdir $(base_s_src:.S=_S.o)))
+base_c_obj   := $(addprefix $(build_dir)/code/, $(notdir $(base_c_src:.c=_c.o)))
+base_cpp_obj := $(addprefix $(build_dir)/code/, $(notdir $(base_cpp_src:.cpp=_cpp.o)))
+
+base_srcs    := $(base_s_src) $(base_c_src) $(base_cpp_src)
+base_objs    := $(base_asm_obj) $(base_c_obj) $(base_cpp_obj)
+## Battle Upgrade
+btlupg_s_src   := $(shell find $(battle_upgrade_dir) -type f -name '*.S')
+btlupg_c_src   := $(shell find $(battle_upgrade_dir) -type f -name '*.c')
+btlupg_cpp_src := $(shell find $(battle_upgrade_dir) -type f -name '*.cpp')
+
+btlupg_asm_obj := $(addprefix $(build_dir)/code/, $(notdir $(btlupg_s_src:.S=_S.o)))
+btlupg_c_obj   := $(addprefix $(build_dir)/code/, $(notdir $(btlupg_c_src:.c=_c.o)))
+btlupg_cpp_obj := $(addprefix $(build_dir)/code/, $(notdir $(btlupg_cpp_src:.cpp=_cpp.o)))
+
+btlupg_srcs    := $(btlupg_s_src) $(btlupg_c_src) $(btlupg_cpp_src)
+btlupg_objs    := $(btlupg_asm_obj) $(btlupg_c_obj) $(btlupg_cpp_obj)
+## Fairy Patch
+fairy_s_src   := $(shell find $(fairy_patch_dir) -type f -name '*.S')
+fairy_c_src   := $(shell find $(fairy_patch_dir) -type f -name '*.c')
+fairy_cpp_src := $(shell find $(fairy_patch_dir) -type f -name '*.cpp')
+
+fairy_asm_obj := $(addprefix $(build_dir)/code/, $(notdir $(fairy_s_src:.S=_S.o)))
+fairy_c_obj   := $(addprefix $(build_dir)/code/, $(notdir $(fairy_c_src:.c=_c.o)))
+fairy_cpp_obj := $(addprefix $(build_dir)/code/, $(notdir $(fairy_cpp_src:.cpp=_cpp.o)))
+
+fairy_srcs    := $(fairy_s_src) $(fairy_c_src) $(fairy_cpp_src)
+fairy_objs    := $(fairy_asm_obj) $(fairy_c_obj) $(fairy_cpp_obj)
+
+# Add patches to final
+src_dirs := $(sort $(dir $(srcs) $(base_srcs) $(btlupg_srcs) $(fairy_srcs)))
+
+# Tools
+as              := arm-none-eabi-as
+gcc             := arm-none-eabi-gcc
+ld              := arm-none-eabi-ld
+
+# Flags
+as_flags        := -mthumb -march=armv5t -r -W -x assembler-with-cpp
+c_flags         := -mthumb -march=armv5t -r -w
+
+# Add our includes
+includes := $(addprefix -I, $(headers)) -I.
+c_flags  += $(includes)
+as_flags += $(includes)
+
+vpath %.S   $(src_dirs)
+vpath %.c   $(src_dirs)
+vpath %.cpp $(src_dirs)
+
+# -------------------------------------------------------------------
+# Targets 
+# -------------------------------------------------------------------
+# Default
+all: code
+
+# Code
+code: $(foreach item,$(patches),$(build_dir)/$(item).elf)
+
+# Manually define targets
+$(build_dir)/Base.elf: $(objs) $(base_objs)
+	@ echo "[+] Linking Base objects into $@..."
+	@ $(ld) -o $@ -r $^
+
+$(build_dir)/BattleUpgrade.elf: $(objs) $(btlupg_objs)
+	@ echo "[+] Linking BattleUpgrade objects into $@..."
+	@ $(ld) -o $@ -r $^
+
+$(build_dir)/FairyPatch.elf: $(objs) $(fairy_objs)
+	@ echo "[+] Linking FairyPatch objects into $@..."
+	@ $(ld) -o $@ -r $^
+
+# -------------------------------------------------------------------
+# Prerequisites 
+# -------------------------------------------------------------------
+# All code compilation/assembly rules
+$(build_dir)/code/%_S.o: %.S $(headers)
+	@ echo "[+] Assembling $<..."
+	@ mkdir -p $(@D)
+	@ $(gcc) $(as_flags) -c $< -o $@
+
+$(build_dir)/code/%_c.o: %.c $(headers)
+	@ echo "[+] Compiling $<..."
+	@ mkdir -p $(@D)
+	@ $(gcc) $(c_flags) -c $< -o $@
+
+$(build_dir)/code/%_cpp.o: %.cpp $(headers)
+	@ echo "[+] Compiling $<..."
+	@ mkdir -p $(@D)
+	@ $(gcc) $(c_flags) -c $< -o $@
+
+# Clean the working directory
+clean:
+	rm -rf $(build_dir)
+
+.PHONY: all code clean
