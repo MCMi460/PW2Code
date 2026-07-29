@@ -566,7 +566,7 @@ extern "C" b32 THUMB_BRANCH_IsItemRepel(u16 itemID) {
 }
 
 // Function that is called when the repel item is used from the bag, triggers the effect and creates the text boxes
-extern "C" u32 THUMB_BRANCH_Bag_RepelEffect(Bag* bag) {
+extern "C" u32 PW2Code_Bag_RepelEffect(Bag* bag) {
     u32 itemID = bag->itemID_8A0;
 
     if (CheckRepelID(itemID)) {
