@@ -25,7 +25,7 @@
 //     return BagSave_AddItemCore(bag, itemId, quantity, heapId) != 0;
 // }
 
-extern "C" ItemType THUMB_BRANCH_PML_ItemGetType(u16 itemID) {
+extern "C" ItemType PW2Code_PML_ItemGetType(u16 itemID) {
     return (ItemType)GetItemParam(itemID, ITSTAT_POCKET_FIELD, 0x1/*HEAPID_USER*/);
 }
 
@@ -57,7 +57,7 @@ u16 ExtRegistrableItems[] = {
 };
 
 // Checks if an item can be registered and returns its RegisterID if it does
-extern "C" REG_ID THUMB_BRANCH_GetRegistrableID(ItemID itemID) {
+extern "C" REG_ID PW2Code_GetRegistrableID(ItemID itemID) {
     for (u16 i = 0; i < ARRAY_COUNT(ExtRegistrableItems); ++i) {
         u16 regItem = ExtRegistrableItems[i];
 
@@ -70,7 +70,7 @@ extern "C" REG_ID THUMB_BRANCH_GetRegistrableID(ItemID itemID) {
 }
 
 // Fills the data to trigger the registered item effect
-extern "C" b32 THUMB_BRANCH_ShortcutMenu_SetKeyItemID(ShortcutMenuWork* shrotcutMenu, REG_ID registrableID) {
+extern "C" b32 PW2Code_ShortcutMenu_SetKeyItemID(ShortcutMenuWork* shrotcutMenu, REG_ID registrableID) {
     // A common event is an event that triggers an effect in the overworld
     // This events are listed in a 6 long array here -> [OVL_12:0216CE24]
     b32 isCommonEvent;
@@ -259,7 +259,7 @@ extern "C" b32 THUMB_BRANCH_ShortcutMenu_SetKeyItemID(ShortcutMenuWork* shrotcut
 }
 
 // Returns data from the a Registrable ID, if the function returns 0 with isNotRegistrable being 0 the item loads the Pokemon List overlay
-extern "C" b32 THUMB_BRANCH_ShortcutMenu_GetActionFromKeyItem(REG_ID registrableID, ACTION_ID* actionID, b32* isNotRegistrable) {
+extern "C" b32 PW2Code_ShortcutMenu_GetActionFromKeyItem(REG_ID registrableID, ACTION_ID* actionID, b32* isNotRegistrable) {
     *isNotRegistrable = 0;
 
     switch (registrableID) {
@@ -535,12 +535,12 @@ extern "C" GameEvent * EventFieldToggleRepel_Create(Field * field, GameSystem * 
 }
 
 // Calls the list event function of the item that has an overworld effect while in the overworld
-extern "C" GameEvent* THUMB_BRANCH_CallFieldCommonEventFunc(FieldCommonEventID cmnEventId, GameSystem* gsys, Field* field) {
+extern "C" GameEvent* PW2Code_CallFieldCommonEventFunc(FieldCommonEventID cmnEventId, GameSystem* gsys, Field* field) {
     return ExtFieldCommonEvents[cmnEventId].function(field, gsys);
 }
 
 // Checks if the reg item action is blocked in the current moment (Ex. bike while in a house)
-extern "C" u32 THUMB_BRANCH_PlayerActionPerms_IsActionBlocked(PlayerActionPerms* perms, ACTION_ID actionID) {
+extern "C" u32 PW2Code_PlayerActionPerms_IsActionBlocked(PlayerActionPerms* perms, ACTION_ID actionID) {
     if (actionID == ACTID_IGNORE) {
         // rn it bypasses the check but you can add your own blocking params HERE
         return 0;
