@@ -2,7 +2,8 @@
 /Builder
 build/
 
-# Development files
+# Development tools
+tools/CTRMap.jar
 export_assets.sh
 
 # MacOS

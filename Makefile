@@ -8,17 +8,20 @@ patches         := Base BattleUpgrade FairyPatch
 
 # Directory configuration
 build_dir        = build
+romfs           := $(build_dir)/romfs
+romfs_data      := $(romfs)/data
 incl_dir        := include
 data_dir        := Assets
 
 patches_dir     := Patches
 externals_dir   := Externals
 
-# Libraries and Globals
+# Globals
+global_dir := Global/
 ## Code
-s_src   := $(shell find . -type f -not -path "*/$(externals_dir)/*" -not -path "*/$(patches_dir)/*" -name '*.S')
-c_src   := $(shell find . -type f -not -path "*/$(externals_dir)/*" -not -path "*/$(patches_dir)/*" -name '*.c')
-cpp_src := $(shell find . -type f -not -path "*/$(externals_dir)/*" -not -path "*/$(patches_dir)/*" -name '*.cpp')
+s_src   := $(shell find $(global_dir) -type f -name '*.S')
+c_src   := $(shell find $(global_dir) -type f -name '*.c')
+cpp_src := $(shell find $(global_dir) -type f -name '*.cpp')
 srcs     := $(s_src) $(c_src) $(cpp_src)
 ## Objects
 asm_obj         := $(addprefix $(build_dir)/code/, $(notdir $(s_src:.S=_S.o)))
@@ -26,7 +29,20 @@ c_obj           := $(addprefix $(build_dir)/code/, $(notdir $(c_src:.c=_c.o)))
 cpp_obj         := $(addprefix $(build_dir)/code/, $(notdir $(cpp_src:.cpp=_cpp.o)))
 objs            := $(asm_obj) $(c_obj) $(cpp_obj)
 ## Headers
-headers   := . Global Headers Externals/swan Externals/ExtLib Externals/NitroKernel/include Externals/libRPM/include
+includes := . Global Headers Externals/swan Externals/ExtLib Externals/NitroKernel/include Externals/libRPM/include
+
+# Libraries
+lib_dir   := Libraries/
+lib_build := $(build_dir)/lib
+lib_romfs := $(romfs_data)/lib
+## Code
+lib_cpp_src  := $(shell find $(lib_dir) -type f -name '*.cpp')
+lib_srcs     := $(lib_cpp_src)
+## Objects
+lib_cpp_obj  := $(addprefix $(lib_build)/, $(patsubst $(lib_dir)%,%,$(lib_cpp_src:.cpp=.elf)))
+lib_objs     := $(lib_cpp_obj)
+lib_dlls     := $(addprefix $(lib_romfs)/, $(patsubst $(lib_build)/%,%,$(lib_objs:.elf=.dll)))
+lib_dll_dirs := $(sort $(dir $(lib_dlls)))
 
 # Patches
 base_dir           := $(patches_dir)/Base
@@ -54,6 +70,8 @@ btlupg_cpp_obj := $(addprefix $(build_dir)/code/, $(notdir $(btlupg_cpp_src:.cpp
 
 btlupg_srcs    := $(btlupg_s_src) $(btlupg_c_src) $(btlupg_cpp_src)
 btlupg_objs    := $(btlupg_asm_obj) $(btlupg_c_obj) $(btlupg_cpp_obj)
+
+includes       += $(battle_upgrade_dir)/include
 ## Fairy Patch
 fairy_s_src   := $(shell find $(fairy_patch_dir) -type f -name '*.S')
 fairy_c_src   := $(shell find $(fairy_patch_dir) -type f -name '*.c')
@@ -67,19 +85,21 @@ fairy_srcs    := $(fairy_s_src) $(fairy_c_src) $(fairy_cpp_src)
 fairy_objs    := $(fairy_asm_obj) $(fairy_c_obj) $(fairy_cpp_obj)
 
 # Add patches to final
-src_dirs := $(sort $(dir $(srcs) $(base_srcs) $(btlupg_srcs) $(fairy_srcs)))
+src_dirs := $(sort $(dir $(srcs) $(lib_dir) $(base_srcs) $(btlupg_srcs) $(fairy_srcs)))
 
 # Tools
 as              := arm-none-eabi-as
 gcc             := arm-none-eabi-gcc
 ld              := arm-none-eabi-ld
+CTRMap          := tools/CTRMap.jar
 
 # Flags
 as_flags        := -mthumb -march=armv5t -r -W -x assembler-with-cpp
 c_flags         := -mthumb -march=armv5t -r -w
 
 # Add our includes
-includes := $(addprefix -I, $(headers)) -I.
+headers  := $(wildcard $(includes:%=%/*.h))
+includes := $(addprefix -I, $(includes))
 c_flags  += $(includes)
 as_flags += $(includes)
 
@@ -91,28 +111,45 @@ vpath %.cpp $(src_dirs)
 # Targets 
 # -------------------------------------------------------------------
 # Default
-all: code
+all: data code
 
 # Code
-code: $(foreach item,$(patches),$(build_dir)/$(item).elf)
+code: $(foreach item,$(patches),$(build_dir)/$(item).elf) $(lib_dlls)
+
+# Data
+data: $(romfs_data)
 
 # Manually define targets
 $(build_dir)/Base.elf: $(objs) $(base_objs)
 	@ echo "[+] Linking Base objects into $@..."
-	@ $(ld) -o $@ -r $^
+	@ $(ld) -o $@ -r $(wildcard $^)
 
 $(build_dir)/BattleUpgrade.elf: $(objs) $(btlupg_objs)
 	@ echo "[+] Linking BattleUpgrade objects into $@..."
-	@ $(ld) -o $@ -r $^
+	@ $(ld) -o $@ -r $(wildcard $^)
 
 $(build_dir)/FairyPatch.elf: $(objs) $(fairy_objs)
 	@ echo "[+] Linking FairyPatch objects into $@..."
-	@ $(ld) -o $@ -r $^
+	@ $(ld) -o $@ -r $(wildcard $^)
+
+$(lib_romfs)/%.dll: $(lib_build)/%.elf
+	@ mkdir -p $(@D)
+	@ if [ -f "$<" ]; then \
+		echo "[>] Creating DLL $@..."; \
+		java -cp $(CTRMap) rpm.cli.RPMTool -i $< --fourcc DLXF -o $@ --esdb ESDB.yml --generate-relocations > /dev/null; \
+	else \
+		echo "$(CYELLOW)[?] Missing ELF $<...$(CDEFAULT)"; \
+	fi
+
+$(romfs_data): $(data_dir)/
+	@ echo "[+] Storing all Assets..."
+	@ mkdir -p $@
+	@ cp -R $< $@
 
 # -------------------------------------------------------------------
 # Prerequisites 
 # -------------------------------------------------------------------
-# All code compilation/assembly rules
+# All standard compilation/assembly rules
 $(build_dir)/code/%_S.o: %.S $(headers)
 	@ echo "[+] Assembling $<..."
 	@ mkdir -p $(@D)
@@ -128,8 +165,18 @@ $(build_dir)/code/%_cpp.o: %.cpp $(headers)
 	@ mkdir -p $(@D)
 	@ $(gcc) $(c_flags) -c $< -o $@
 
+# Library compilation/assembly rules
+$(lib_build)/%.elf: %.cpp $(headers)
+	@ echo "[+] Compiling $<..."
+	@ mkdir -p $(@D)
+	@ $(gcc) $(c_flags) -c $< -o $@
+
 # Clean the working directory
 clean:
 	rm -rf $(build_dir)
 
 .PHONY: all code clean
+
+### Misc.
+CYELLOW   := \033[0;33m
+CDEFAULT  := \033[0m
