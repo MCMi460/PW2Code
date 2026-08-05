@@ -12,6 +12,7 @@ romfs           := $(build_dir)/romfs
 romfs_data      := $(romfs)/data
 incl_dir        := include
 data_dir        := Assets
+dll_dir         := $(romfs_data)/patches
 
 patches_dir     := Patches
 externals_dir   := Externals
@@ -88,20 +89,17 @@ fairy_objs    := $(fairy_asm_obj) $(fairy_c_obj) $(fairy_cpp_obj)
 src_dirs := $(sort $(dir $(srcs) $(lib_dir) $(base_srcs) $(btlupg_srcs) $(fairy_srcs)))
 
 # Tools
-as              := arm-none-eabi-as
-gcc             := arm-none-eabi-gcc
+g++             := arm-none-eabi-g++
 ld              := arm-none-eabi-ld
 CTRMap          := tools/CTRMap.jar
 
 # Flags
-as_flags        := -mthumb -march=armv5t -r -W -x assembler-with-cpp
-c_flags         := -mthumb -march=armv5t -r -w
+flags           := -mthumb -march=armv5t -r -Os -mlong-calls -w
 
 # Add our includes
 headers  := $(wildcard $(includes:%=%/*.h))
 includes := $(addprefix -I, $(includes))
-c_flags  += $(includes)
-as_flags += $(includes)
+flags    += $(includes)
 
 vpath %.S   $(src_dirs)
 vpath %.c   $(src_dirs)
@@ -114,23 +112,31 @@ vpath %.cpp $(src_dirs)
 all: data code
 
 # Code
-code: $(foreach item,$(patches),$(build_dir)/$(item).elf) $(lib_dlls)
+code: patches libraries
+patches: $(foreach item,$(patches),$(dll_dir)/$(item).dll)
+libraries: $(lib_dlls)
 
 # Data
 data: $(romfs_data)
 
 # Manually define targets
+$(dll_dir)/%.dll: $(build_dir)/%.elf
+	@ mkdir -p $(@D)
+	@ echo "[>] Creating DLL $@..."
+	@ java -cp $(CTRMap) rpm.cli.RPMTool -i $< --fourcc DLXF -o $@ --esdb ESDB.yml --generate-relocations
+
 $(build_dir)/Base.elf: $(objs) $(base_objs)
 	@ echo "[+] Linking Base objects into $@..."
-	@ $(ld) -o $@ -r $(wildcard $^)
+	@ $(ld) -o $@ -r $$(ls $^ 2>/dev/null)
 
 $(build_dir)/BattleUpgrade.elf: $(objs) $(btlupg_objs)
+	@ echo "$$(ls $^ 2>/dev/null)"
 	@ echo "[+] Linking BattleUpgrade objects into $@..."
-	@ $(ld) -o $@ -r $(wildcard $^)
+	@ $(ld) -o $@ -r $$(ls $^ 2>/dev/null)
 
 $(build_dir)/FairyPatch.elf: $(objs) $(fairy_objs)
 	@ echo "[+] Linking FairyPatch objects into $@..."
-	@ $(ld) -o $@ -r $(wildcard $^)
+	@ $(ld) -o $@ -r $$(ls $^ 2>/dev/null)
 
 $(lib_romfs)/%.dll: $(lib_build)/%.elf
 	@ mkdir -p $(@D)
@@ -153,23 +159,23 @@ $(romfs_data): $(data_dir)/
 $(build_dir)/code/%_S.o: %.S $(headers)
 	@ echo "[+] Assembling $<..."
 	@ mkdir -p $(@D)
-	@ $(gcc) $(as_flags) -c $< -o $@
+	@ $(g++) $(flags) -c $< -o $@
 
 $(build_dir)/code/%_c.o: %.c $(headers)
 	@ echo "[+] Compiling $<..."
 	@ mkdir -p $(@D)
-	@ $(gcc) $(c_flags) -c $< -o $@
+	@ $(g++) $(flags) -c $< -o $@
 
 $(build_dir)/code/%_cpp.o: %.cpp $(headers)
 	@ echo "[+] Compiling $<..."
 	@ mkdir -p $(@D)
-	@ $(gcc) $(c_flags) -c $< -o $@
+	@ $(g++) $(flags) -c $< -o $@
 
 # Library compilation/assembly rules
 $(lib_build)/%.elf: %.cpp $(headers)
 	@ echo "[+] Compiling $<..."
 	@ mkdir -p $(@D)
-	@ $(gcc) $(c_flags) -c $< -o $@
+	@ $(g++) $(flags) -c $< -o $@
 
 # Clean the working directory
 clean:
